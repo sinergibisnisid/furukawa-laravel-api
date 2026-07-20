@@ -5,6 +5,7 @@ use App\Http\Controllers\Audit\ActivityLogController;
 use App\Http\Controllers\Auth\PermissionController;
 use App\Http\Controllers\Auth\UserController;
 use App\Http\Controllers\Auth\UserGroupController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Master\BCLKTFinishedGoodController;
 use App\Http\Controllers\Master\BCLKTRawMaterialController;
 use App\Http\Controllers\Master\BillOfMaterialController;
@@ -29,6 +30,8 @@ use App\Http\Controllers\Transaction\ProductionController;
 use App\Http\Controllers\Transaction\ProductionDetailController;
 use App\Http\Controllers\Transaction\StockOpnameController;
 use App\Http\Controllers\Transaction\StockOpnameDetailController;
+use App\Http\Controllers\Upload\IncomingUploadController;
+use App\Http\Controllers\Upload\OrderUploadController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -47,6 +50,11 @@ use Illuminate\Support\Facades\Route;
 // Public auth
 // ============================================================================
 Route::post('/authentication/login', [AuthController::class, 'login']);
+
+// ============================================================================
+// Public (no auth required)
+// ============================================================================
+Route::get('/public/homes/dashboard', [DashboardController::class, 'index']);
 
 // ============================================================================
 // Protected
@@ -133,6 +141,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/{id}', [CompanyController::class, 'destroy'])->whereNumber('id');
     });
 
+    // -- master: uoms (backward compatibility) --
+    Route::get('/uoms', [ItemController::class, 'getUoms']);
+
+
     // ============================================================
     // Transactional: Incomings + IncomingDetails
     // ============================================================
@@ -151,6 +163,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/pagination', [IncomingDetailController::class, 'findAllPagination']);
         Route::get('/pagination/{incomingId}', [IncomingDetailController::class, 'findAllPagination'])
             ->whereNumber('incomingId');
+        Route::post('/upload/{featureName}', [IncomingUploadController::class, 'upload']);
         Route::post('', [IncomingDetailController::class, 'store']);
         Route::put('', [IncomingDetailController::class, 'update']);
         Route::put('/{id}', [IncomingDetailController::class, 'update'])->whereNumber('id');
@@ -171,6 +184,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::prefix('orders-detail')->group(function () {
         Route::get('/pagination', [OrderDetailController::class, 'findAllPagination']);
+        Route::post('/upload/{featureName}', [OrderUploadController::class, 'upload']);
         Route::post('', [OrderDetailController::class, 'create']);
         Route::put('', [OrderDetailController::class, 'update']);
         Route::put('/{id}', [OrderDetailController::class, 'update'])->whereNumber('id');
@@ -218,6 +232,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/pagination', [ProductionDetailController::class, 'findAllPagination']);
         Route::get('/pagination/{productionId}', [ProductionDetailController::class, 'findAllPagination'])
             ->whereNumber('productionId');
+        Route::post('', [ProductionDetailController::class, 'store']);
+        Route::put('', [ProductionDetailController::class, 'update']);
+        Route::put('/{id}', [ProductionDetailController::class, 'update'])->whereNumber('id');
+        Route::delete('/{id}', [ProductionDetailController::class, 'destroy'])->whereNumber('id');
     });
 
     // ============================================================

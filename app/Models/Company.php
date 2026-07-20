@@ -41,7 +41,7 @@ class Company extends Model
             'company_type_links',
             'company_id',
             'company_type_id',
-        )->withTimestamps(false);
+        );
     }
 
     public function incomings(): HasMany
