@@ -46,7 +46,7 @@ class OrderUploadController extends Controller
         // =========================
         foreach ($headerRows as $i => $row) {
             $rowIndex = $i + 1;
-            if ($i === 0) {
+            if ($i < 2) {
                 continue;
             }
             if ($this->rowEmpty($row)) {
