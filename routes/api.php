@@ -179,6 +179,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('', [OrderController::class, 'create']);
         Route::put('', [OrderController::class, 'update']);
         Route::put('/{id}', [OrderController::class, 'update'])->whereNumber('id');
+        Route::delete('/batch', [OrderController::class, 'destroyBatch']);
         Route::delete('/{id}', [OrderController::class, 'destroy'])->whereNumber('id');
     });
 

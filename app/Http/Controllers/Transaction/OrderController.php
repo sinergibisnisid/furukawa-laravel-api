@@ -124,6 +124,27 @@ class OrderController extends Controller
         return ApiResponse::success(null, 'Deleted');
     }
 
+    public function destroyBatch(Request $request): JsonResponse
+    {
+        $request->validate([
+            'ids' => ['required', 'array'],
+            'ids.*' => ['integer', 'exists:orders,id'],
+            'feature_name' => ['nullable', 'string']
+        ]);
+
+        $ids = $request->input('ids');
+        $feature = $request->input('feature_name') ?? 'Orders';
+
+        DB::transaction(function () use ($ids) {
+            OrderDetail::whereIn('order_id', $ids)->delete();
+            Order::whereIn('id', $ids)->delete();
+        });
+
+        $this->logSvc->log($request, ActivityLog::TYPE_DELETE, 'Order', "Deleted {$feature} (Batch: " . implode(', ', $ids) . ")");
+
+        return ApiResponse::success(null, 'Batch deleted successfully');
+    }
+
     private function validateData(Request $request, bool $isUpdate): array
     {
         $required = $isUpdate ? 'sometimes' : 'required';
