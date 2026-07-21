@@ -79,4 +79,58 @@ class ProductionDetailController extends Controller
 
         return ApiResponse::success($query->orderBy('id', 'desc')->limit(500)->get());
     }
+
+    public function store(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'production_id' => ['required', 'integer', 'exists:productions,id'],
+            'item_id' => ['required', 'integer', 'exists:items,id'],
+            'po_quantity' => ['required', 'numeric'],
+            'quantity' => ['required', 'numeric', 'gt:0'],
+            'stock_opname_feature' => ['nullable', 'string', 'max:255'],
+            'identifier' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $data['remainder_quantity'] = $data['quantity'];
+
+        $detail = ProductionDetail::create($data);
+
+        return ApiResponse::created($detail);
+    }
+
+    public function update(Request $request, ?int $id = null): JsonResponse
+    {
+        $resolvedId = $id ?? (int) $request->input('id');
+        if (! $resolvedId) {
+            return ApiResponse::error('id is required', 422);
+        }
+        
+        $detail = ProductionDetail::findOrFail($resolvedId);
+
+        $data = $request->validate([
+            'production_id' => ['sometimes', 'required', 'integer', 'exists:productions,id'],
+            'item_id' => ['sometimes', 'required', 'integer', 'exists:items,id'],
+            'po_quantity' => ['sometimes', 'required', 'numeric'],
+            'quantity' => ['sometimes', 'required', 'numeric', 'gt:0'],
+            'stock_opname_feature' => ['nullable', 'string', 'max:255'],
+            'identifier' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        if (isset($data['quantity'])) {
+            // Simply sync remainder_quantity (assuming Scrap doesn't have complex FIFO)
+            $data['remainder_quantity'] = $data['quantity'];
+        }
+
+        $detail->update($data);
+
+        return ApiResponse::success($detail);
+    }
+
+    public function destroy(Request $request, int $id): JsonResponse
+    {
+        $detail = ProductionDetail::findOrFail($id);
+        $detail->delete();
+
+        return ApiResponse::success(null, 'Deleted');
+    }
 }

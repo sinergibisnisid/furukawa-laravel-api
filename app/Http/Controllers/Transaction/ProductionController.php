@@ -27,7 +27,7 @@ class ProductionController extends Controller
         $data = $request->validate([
             'no' => ['required', 'string', 'max:255'],
             'date' => ['required', 'date'],
-            'bill_of_material_id' => ['required', 'integer', 'exists:bill_of_materials,id'],
+            'bill_of_material_id' => ['nullable', 'integer', 'exists:bill_of_materials,id'],
             'total_quantity' => ['required', 'numeric', 'gt:0'],
             'description' => ['nullable', 'string'],
             'feature' => ['nullable', 'string', 'max:255'],
@@ -48,7 +48,7 @@ class ProductionController extends Controller
             'id' => ['required', 'integer', 'exists:productions,id'],
             'no' => ['sometimes', 'required', 'string', 'max:255'],
             'date' => ['sometimes', 'required', 'date'],
-            'bill_of_material_id' => ['sometimes', 'required', 'integer', 'exists:bill_of_materials,id'],
+            'bill_of_material_id' => ['nullable', 'integer', 'exists:bill_of_materials,id'],
             'total_quantity' => ['sometimes', 'required', 'numeric', 'gt:0'],
             'description' => ['sometimes', 'nullable', 'string'],
             'feature' => ['sometimes', 'nullable', 'string', 'max:255'],

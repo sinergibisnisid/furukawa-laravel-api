@@ -46,14 +46,21 @@ class ApiResponse
         return response()->json([
             'success' => true,
             'message' => $message,
-            'data' => $paginator->items(),
+            'data' => [
+                'data' => $paginator->items(),
+                'totalPages' => $paginator->lastPage(),
+                'totalItems' => $paginator->total(),
+                'currentPage' => $paginator->currentPage(),
+                'pageSize' => $paginator->perPage(),
+            ],
+            'entries' => $paginator->items(),
             'pagination' => [
                 'current_page' => $paginator->currentPage(),
                 'per_page' => $paginator->perPage(),
                 'total' => $paginator->total(),
                 'total_pages' => $paginator->lastPage(),
             ],
-        ]);
+        ], 200);
     }
 
     public static function error(string $message, int $status = 400, mixed $details = null): JsonResponse

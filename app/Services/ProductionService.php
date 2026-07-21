@@ -105,72 +105,77 @@ class ProductionService
             $productionDate = Carbon::parse($data['date']);
 
             // -------------------------------------------------- Step 1: BOM
-            $bom = BillOfMaterial::with(['details.item', 'finishedGoodItem'])
-                ->findOrFail($data['bill_of_material_id']);
+            $bom = null;
+            $requirements = [];
+            $byItem = collect();
 
-            if ($bom->details->isEmpty()) {
-                throw AppException::badRequest('BOM tidak punya detail material.');
-            }
+            if (!empty($data['bill_of_material_id'])) {
+                $bom = BillOfMaterial::with(['details.item', 'finishedGoodItem'])
+                    ->findOrFail($data['bill_of_material_id']);
 
-            // -------------------------------------------------- Step 2: requirements
-            // Aggregate per item (BOM bisa berisi item duplikat).
-            $requirements = []; // item_id => ['needed' => float, 'item' => Item]
-            foreach ($bom->details as $bd) {
-                $itemId = (int) $bd->item_id;
-                if (! isset($requirements[$itemId])) {
-                    $requirements[$itemId] = [
-                        'needed' => 0.0,
-                        'item' => $bd->item,
-                    ];
+                if ($bom->details->isEmpty()) {
+                    throw AppException::badRequest('BOM tidak punya detail material.');
                 }
-                $requirements[$itemId]['needed'] += (float) $bd->quantity * $totalQty;
-            }
 
-            // -------------------------------------------------- Step 3: check stock
-            // Lock kandidat row supaya production paralel tidak double-spend.
-            $candidates = IncomingDetail::query()
-                ->select('incomings_details.*')
-                ->join('incomings', 'incomings.id', '=', 'incomings_details.incoming_id')
-                ->whereIn('incomings_details.item_id', array_keys($requirements))
-                ->where('incomings_details.remainder_quantity', '>', 0)
-                ->whereDate('incomings.incoming_date', '<=', $productionDate->toDateString())
-                ->orderBy('incomings.customs_document_date', 'asc')
-                ->orderBy('incomings.customs_document_number', 'asc')
-                ->orderBy('incomings_details.item_series', 'asc')
-                ->orderBy('incomings_details.id', 'asc')
-                ->lockForUpdate()
-                ->get();
-
-            // Group kandidat per item.
-            $byItem = $candidates->groupBy('item_id');
-
-            // Validasi ketersediaan stok per kebutuhan.
-            $deficits = [];
-            foreach ($requirements as $itemId => $req) {
-                $available = (float) ($byItem->get($itemId)?->sum('remainder_quantity') ?? 0);
-                if ($available + 1e-9 < $req['needed']) {
-                    $deficits[] = [
-                        'item_id' => $itemId,
-                        'item_code' => $req['item']?->code,
-                        'item_name' => $req['item']?->name,
-                        'required' => round($req['needed'], 4),
-                        'available' => round($available, 4),
-                        'deficit' => round($req['needed'] - $available, 4),
-                    ];
+                // -------------------------------------------------- Step 2: requirements
+                // Aggregate per item (BOM bisa berisi item duplikat).
+                foreach ($bom->details as $bd) {
+                    $itemId = (int) $bd->item_id;
+                    if (! isset($requirements[$itemId])) {
+                        $requirements[$itemId] = [
+                            'needed' => 0.0,
+                            'item' => $bd->item,
+                        ];
+                    }
+                    $requirements[$itemId]['needed'] += (float) $bd->quantity * $totalQty;
                 }
-            }
-            if ($deficits) {
-                throw AppException::badRequest(
-                    'Stock material tidak mencukupi untuk produksi.',
-                    $deficits,
-                );
+
+                // -------------------------------------------------- Step 3: check stock
+                // Lock kandidat row supaya production paralel tidak double-spend.
+                $candidates = IncomingDetail::query()
+                    ->select('incomings_details.*')
+                    ->join('incomings', 'incomings.id', '=', 'incomings_details.incoming_id')
+                    ->whereIn('incomings_details.item_id', array_keys($requirements))
+                    ->where('incomings_details.remainder_quantity', '>', 0)
+                    ->whereDate('incomings.incoming_date', '<=', $productionDate->toDateString())
+                    ->orderBy('incomings.customs_document_date', 'asc')
+                    ->orderBy('incomings.customs_document_number', 'asc')
+                    ->orderBy('incomings_details.item_series', 'asc')
+                    ->orderBy('incomings_details.id', 'asc')
+                    ->lockForUpdate()
+                    ->get();
+
+                // Group kandidat per item.
+                $byItem = $candidates->groupBy('item_id');
+
+                // Validasi ketersediaan stok per kebutuhan.
+                $deficits = [];
+                foreach ($requirements as $itemId => $req) {
+                    $available = (float) ($byItem->get($itemId)?->sum('remainder_quantity') ?? 0);
+                    if ($available + 1e-9 < $req['needed']) {
+                        $deficits[] = [
+                            'item_id' => $itemId,
+                            'item_code' => $req['item']?->code,
+                            'item_name' => $req['item']?->name,
+                            'required' => round($req['needed'], 4),
+                            'available' => round($available, 4),
+                            'deficit' => round($req['needed'] - $available, 4),
+                        ];
+                    }
+                }
+                if ($deficits) {
+                    throw AppException::badRequest(
+                        'Stock material tidak mencukupi untuk produksi.',
+                        $deficits,
+                    );
+                }
             }
 
             // -------------------------------------------------- Step 4: header
             $production = Production::create([
                 'no' => $data['no'],
                 'date' => $productionDate,
-                'bill_of_material_id' => $bom->id,
+                'bill_of_material_id' => $bom?->id,
                 'feature' => $data['feature'] ?? 'Finished Goods',
                 'description' => $data['description'] ?? null,
                 'total_quantity' => $totalQty,
@@ -178,107 +183,109 @@ class ProductionService
             ]);
 
             // -------------------------------------------------- Step 5: FIFO consume
-            $rootMovementIds = [];
+            if ($bom) {
+                $rootMovementIds = [];
 
-            foreach ($requirements as $itemId => $req) {
-                $needed = $req['needed'];
-                $itemCandidates = $byItem->get($itemId) ?? collect();
+                foreach ($requirements as $itemId => $req) {
+                    $needed = $req['needed'];
+                    $itemCandidates = $byItem->get($itemId) ?? collect();
 
-                // Agregat semua qty consume per item ke 1 ProductionDetail.
-                // Pemecahan per-incoming disimpan di productions_detail_links.
-                $consumeDetail = ProductionDetail::create([
-                    'production_id' => $production->id,
-                    'item_id' => $itemId,
-                    'po_quantity' => $needed,
-                    'quantity' => $needed,
-                    'remainder_quantity' => $needed,
-                    'identifier' => ProductionDetail::IDENT_CONSUME,
-                ]);
-
-                foreach ($itemCandidates as $detail) {
-                    if ($needed <= 1e-9) {
-                        break;
-                    }
-
-                    $available = (float) $detail->remainder_quantity;
-                    $take = min($needed, $available);
-
-                    // Lookup INCOMING_MATERIAL movement yang dibuat saat incoming-detail.
-                    $incomingMovement = $this->movementSvc->findRootIncomingForDetail($detail->id);
-
-                    // Decrement incoming_details.remainder_quantity atomically.
-                    DB::table('incomings_details')
-                        ->where('id', $detail->id)
-                        ->update([
-                            'remainder_quantity' => DB::raw(
-                                'remainder_quantity - '.((string) $take),
-                            ),
-                        ]);
-
-                    // Persist allocation link.
-                    ProductionDetailLink::create([
-                        'production_detail_id' => $consumeDetail->id,
-                        'incoming_detail_id' => $detail->id,
-                        'quantity' => $take,
+                    // Agregat semua qty consume per item ke 1 ProductionDetail.
+                    // Pemecahan per-incoming disimpan di productions_detail_links.
+                    $consumeDetail = ProductionDetail::create([
+                        'production_id' => $production->id,
+                        'item_id' => $itemId,
+                        'po_quantity' => $needed,
+                        'quantity' => $needed,
+                        'remainder_quantity' => $needed,
+                        'identifier' => ProductionDetail::IDENT_CONSUME,
                     ]);
 
-                    // PRODUCTION_CONSUME ledger entry.
-                    $consumeMovement = $this->movementSvc->create([
-                        'movement_type' => MaterialMovement::TYPE_PRODUCTION_CONSUME,
+                    foreach ($itemCandidates as $detail) {
+                        if ($needed <= 1e-9) {
+                            break;
+                        }
+
+                        $available = (float) $detail->remainder_quantity;
+                        $take = min($needed, $available);
+
+                        // Lookup INCOMING_MATERIAL movement yang dibuat saat incoming-detail.
+                        $incomingMovement = $this->movementSvc->findRootIncomingForDetail($detail->id);
+
+                        // Decrement incoming_details.remainder_quantity atomically.
+                        DB::table('incomings_details')
+                            ->where('id', $detail->id)
+                            ->update([
+                                'remainder_quantity' => DB::raw(
+                                    'remainder_quantity - '.((string) $take),
+                                ),
+                            ]);
+
+                        // Persist allocation link.
+                        ProductionDetailLink::create([
+                            'production_detail_id' => $consumeDetail->id,
+                            'incoming_detail_id' => $detail->id,
+                            'quantity' => $take,
+                        ]);
+
+                        // PRODUCTION_CONSUME ledger entry.
+                        $consumeMovement = $this->movementSvc->create([
+                            'movement_type' => MaterialMovement::TYPE_PRODUCTION_CONSUME,
+                            'movement_date' => $productionDate,
+                            'document_id' => $production->id,
+                            'document_no' => $production->no,
+                            'item_id' => $itemId,
+                            'quantity' => $take,
+                            'movement_direction' => MaterialMovement::DIRECTION_OUT,
+                            'location_from' => MaterialMovement::LOC_WIP,
+                            'location_to' => MaterialMovement::LOC_PRODUCTION,
+                            'parent_movement_id' => $incomingMovement?->id,
+                            'root_incoming_material_movement_id' => $incomingMovement?->id,
+                        ]);
+
+                        if ($incomingMovement) {
+                            $rootMovementIds[$incomingMovement->id] = true;
+                        }
+
+                        $needed -= $take;
+                    }
+
+                    if ($needed > 1e-9) {
+                        // Tidak seharusnya terjadi (sudah lewat deficit pre-check),
+                        // tapi kalau iya, gagalkan transaksi.
+                        throw AppException::internal(
+                            'FIFO allocation incomplete (concurrent allocation?).',
+                        );
+                    }
+                }
+
+                // -------------------------------------------------- Step 6: PRODUCE
+                if ($bom->finished_good_id) {
+                    $produceDetail = ProductionDetail::create([
+                        'production_id' => $production->id,
+                        'item_id' => $bom->finished_good_id,
+                        'po_quantity' => $totalQty,
+                        'quantity' => $totalQty,
+                        'remainder_quantity' => $totalQty,
+                        'identifier' => ProductionDetail::IDENT_PRODUCE,
+                    ]);
+
+                    $firstRoot = array_key_first($rootMovementIds);
+
+                    $this->movementSvc->create([
+                        'movement_type' => MaterialMovement::TYPE_PRODUCTION_PRODUCE,
                         'movement_date' => $productionDate,
                         'document_id' => $production->id,
                         'document_no' => $production->no,
-                        'item_id' => $itemId,
-                        'quantity' => $take,
-                        'movement_direction' => MaterialMovement::DIRECTION_OUT,
-                        'location_from' => MaterialMovement::LOC_WIP,
-                        'location_to' => MaterialMovement::LOC_PRODUCTION,
-                        'parent_movement_id' => $incomingMovement?->id,
-                        'root_incoming_material_movement_id' => $incomingMovement?->id,
+                        'item_id' => $bom->finished_good_id,
+                        'quantity' => $totalQty,
+                        'movement_direction' => MaterialMovement::DIRECTION_IN,
+                        'location_from' => MaterialMovement::LOC_PRODUCTION,
+                        'location_to' => MaterialMovement::LOC_FG,
+                        'parent_movement_id' => null,
+                        'root_incoming_material_movement_id' => $firstRoot ?: null,
                     ]);
-
-                    if ($incomingMovement) {
-                        $rootMovementIds[$incomingMovement->id] = true;
-                    }
-
-                    $needed -= $take;
                 }
-
-                if ($needed > 1e-9) {
-                    // Tidak seharusnya terjadi (sudah lewat deficit pre-check),
-                    // tapi kalau iya, gagalkan transaksi.
-                    throw AppException::internal(
-                        'FIFO allocation incomplete (concurrent allocation?).',
-                    );
-                }
-            }
-
-            // -------------------------------------------------- Step 6: PRODUCE
-            if ($bom->finished_good_id) {
-                $produceDetail = ProductionDetail::create([
-                    'production_id' => $production->id,
-                    'item_id' => $bom->finished_good_id,
-                    'po_quantity' => $totalQty,
-                    'quantity' => $totalQty,
-                    'remainder_quantity' => $totalQty,
-                    'identifier' => ProductionDetail::IDENT_PRODUCE,
-                ]);
-
-                $firstRoot = array_key_first($rootMovementIds);
-
-                $this->movementSvc->create([
-                    'movement_type' => MaterialMovement::TYPE_PRODUCTION_PRODUCE,
-                    'movement_date' => $productionDate,
-                    'document_id' => $production->id,
-                    'document_no' => $production->no,
-                    'item_id' => $bom->finished_good_id,
-                    'quantity' => $totalQty,
-                    'movement_direction' => MaterialMovement::DIRECTION_IN,
-                    'location_from' => MaterialMovement::LOC_PRODUCTION,
-                    'location_to' => MaterialMovement::LOC_FG,
-                    'parent_movement_id' => null,
-                    'root_incoming_material_movement_id' => $firstRoot ?: null,
-                ]);
             }
 
             $this->logSvc->log(

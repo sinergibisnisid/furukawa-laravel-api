@@ -39,4 +39,21 @@ class ItemController extends GenericCrudController
             'price' => ['sometimes', 'required', 'numeric'],
         ];
     }
+
+    public function getUoms()
+    {
+        $uoms = Item::select('uom')
+            ->whereNotNull('uom')
+            ->where('uom', '!=', '')
+            ->distinct()
+            ->pluck('uom')
+            ->map(function ($uom) {
+                return [
+                    'id' => $uom,
+                    'name' => $uom,
+                ];
+            })->values();
+
+        return response()->json($uoms);
+    }
 }

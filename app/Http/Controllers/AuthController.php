@@ -69,16 +69,18 @@ class AuthController extends Controller
         $this->logSvc->log($request, ActivityLog::TYPE_LOGIN, 'User', "User {$user->email} logged in.");
 
         return ApiResponse::success([
-            'token' => $token,
-            'user' => [
-                'id' => $user->id,
-                'username' => $user->username,
-                'email' => $user->email,
-                'user_group_id' => $user->user_group_id,
-                'user_group' => $user->userGroup?->only(['id', 'name']),
-                'must_change_password' => (bool) $user->must_change_password,
+            'entry' => [
+                'token' => $token,
+                'user' => [
+                    'id' => $user->id,
+                    'username' => $user->username,
+                    'email' => $user->email,
+                    'user_group_id' => $user->user_group_id,
+                    'user_group' => $user->userGroup?->only(['id', 'name']),
+                    'must_change_password' => (bool) $user->must_change_password,
+                ],
+                'permissions' => $user->permissionNames(),
             ],
-            'permissions' => $user->permissionNames(),
         ], 'Login successful');
     }
 
