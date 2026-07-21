@@ -10,6 +10,8 @@ use App\Support\ApiResponse;
 use App\Support\Paginator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use App\Services\ExcelHelper;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Standalone CRUD untuk BOM detail row.
@@ -17,7 +19,9 @@ use Illuminate\Http\Request;
  */
 class BillOfMaterialDetailController extends Controller
 {
-    public function __construct(private ActivityLogService $logSvc) {}
+    public function __construct(
+        private ActivityLogService $logSvc
+    ) {}
 
     public function findAll(Request $request): JsonResponse
     {
@@ -59,7 +63,7 @@ class BillOfMaterialDetailController extends Controller
     public function update(Request $request, ?int $id = null): JsonResponse
     {
         $resolvedId = $id ?? (int) $request->input('id');
-        if (! $resolvedId) {
+        if (!$resolvedId) {
             return ApiResponse::error('id is required', 422);
         }
         $request->merge(['id' => $resolvedId]);
@@ -87,5 +91,49 @@ class BillOfMaterialDetailController extends Controller
         $this->logSvc->log($request, ActivityLog::TYPE_DELETE, 'BillOfMaterialDetail', "Deleted BOMDetail #{$id}");
 
         return ApiResponse::success(null, 'Deleted');
+    }
+
+    public function download(Request $request): StreamedResponse
+    {
+        $query = BillOfMaterialDetail::with(['item', 'billOfMaterial'])
+            ->orderBy('id', 'desc');
+
+        if ($request->filled('before_date')) {
+            $query->whereHas('billOfMaterial', function($q) use ($request) {
+                $q->whereDate('date', '<=', $request->input('before_date'));
+            });
+        }
+        if ($request->filled('after_date')) {
+            $query->whereHas('billOfMaterial', function($q) use ($request) {
+                $q->whereDate('date', '>=', $request->input('after_date'));
+            });
+        }
+
+        $details = $query->get();
+
+        $headers = [
+            'NO', 'BOM NO', 'BOM DATE', 'ITEM CODE', 'ITEM DESCRIPTION', 'UOM', 'QUANTITY'
+        ];
+
+        $rows = [];
+        $no = 1;
+        foreach ($details as $detail) {
+            $rows[] = [
+                $no++,
+                $detail->billOfMaterial?->no,
+                $detail->billOfMaterial?->date,
+                $detail->item?->code,
+                $detail->item?->description,
+                $detail->item?->uom,
+                $detail->quantity,
+            ];
+        }
+
+        $book = ExcelHelper::buildSimpleXlsx('BOM Details', $headers, $rows);
+        $filename = 'bill-of-material-details-' . date('Y-m-d-His') . '.xlsx';
+
+        $this->logSvc->log($request, ActivityLog::TYPE_DOWNLOAD, 'BillOfMaterialDetail', "Downloaded BOM Detail Data");
+
+        return ExcelHelper::downloadResponse($book, $filename);
     }
 }

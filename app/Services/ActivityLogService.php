@@ -35,7 +35,7 @@ class ActivityLogService
             ]);
         } catch (\Throwable $e) {
             // Jangan biarkan kegagalan log meng-cancel transaksi bisnis.
-            Log::warning('ActivityLog write failed: '.$e->getMessage(), [
+            Log::warning('ActivityLog write failed: ' . $e->getMessage(), [
                 'type' => $type,
                 'name' => $name,
             ]);

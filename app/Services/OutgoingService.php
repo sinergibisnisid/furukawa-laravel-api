@@ -143,7 +143,7 @@ class OutgoingService
                             ->where('id', $d->production_id)
                             ->update([
                                 'remainder_quantity' => DB::raw(
-                                    'remainder_quantity + '.((string) $d->quantity),
+                                    'remainder_quantity + ' . ((string) $d->quantity),
                                 ),
                             ]);
                     }
@@ -204,9 +204,9 @@ class OutgoingService
         if ($partial) {
             $present = [];
             foreach ($fields as $k => $v) {
-                if (array_key_exists($k, $data)
-                    || ($k === 'outgoing_no' && array_key_exists('no', $data))
-                    || ($k === 'outgoing_date' && array_key_exists('date', $data))) {
+                if (array_key_exists($k, $data) ||
+                        ($k === 'outgoing_no' && array_key_exists('no', $data)) ||
+                        ($k === 'outgoing_date' && array_key_exists('date', $data))) {
                     $present[$k] = $v;
                 }
             }
@@ -225,7 +225,7 @@ class OutgoingService
 
         $found = Order::whereIn('id', $orderIds)->lockForUpdate()->get()->keyBy('id');
         foreach ($orderIds as $oid) {
-            if (! isset($found[$oid])) {
+            if (!isset($found[$oid])) {
                 throw AppException::badRequest("Order with ID $oid not found");
             }
             $found[$oid]->outgoing_id = $outgoing->id;

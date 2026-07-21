@@ -53,7 +53,7 @@ class ReportService
             $opts,
             dateColumn: 'i.incoming_date',
             searchColumns: ['i.no', 'i.customs_document_number', 'it.code', 'it.name'],
-            mapper: fn ($r) => [
+            mapper: fn($r) => [
                 'record_date' => $this->fmt($r->record_date),
                 'bc_document_type' => '',
                 'customs_document_no' => $r->customs_document_no ?? '',
@@ -99,7 +99,7 @@ class ReportService
             $opts,
             dateColumn: 'ow.date',
             searchColumns: ['ow.no', 'it.code', 'it.name'],
-            mapper: fn ($r) => [
+            mapper: fn($r) => [
                 'expenditure_proof_no' => $r->expenditure_proof_no,
                 'expenditure_proof_date' => $this->fmt($r->expenditure_proof_date),
                 'goods_code' => $r->goods_code,
@@ -136,7 +136,7 @@ class ReportService
             $opts,
             dateColumn: 'p.date',
             searchColumns: ['p.no', 'it.code', 'it.name'],
-            mapper: fn ($r) => [
+            mapper: fn($r) => [
                 'document_number' => $r->document_number,
                 'document_date' => $this->fmt($r->document_date),
                 'goods_code' => $r->goods_code,
@@ -183,7 +183,7 @@ class ReportService
             $opts,
             dateColumn: 'o.outgoing_date',
             searchColumns: ['o.peb_no', 'o.outgoing_no', 'it.code', 'it.name'],
-            mapper: fn ($r) => [
+            mapper: fn($r) => [
                 'peb_no' => $r->peb_no ?? '',
                 'peb_date' => $this->fmt($r->peb_date),
                 'pib_no' => '',
@@ -219,8 +219,8 @@ class ReportService
         $incIn = $this->sumByItem(
             DB::table('incomings_details as id')
                 ->join('incomings as i', 'i.id', '=', 'id.incoming_id')
-                ->when($start, fn ($q) => $q->whereDate('i.incoming_date', '>=', $start))
-                ->when($end, fn ($q) => $q->whereDate('i.incoming_date', '<=', $end))
+                ->when($start, fn($q) => $q->whereDate('i.incoming_date', '>=', $start))
+                ->when($end, fn($q) => $q->whereDate('i.incoming_date', '<=', $end))
                 ->groupBy('id.item_id')
                 ->select(['id.item_id', DB::raw('COALESCE(SUM(id.quantity), 0) as qty')]),
         );
@@ -228,8 +228,8 @@ class ReportService
         $wipOut = $this->sumByItem(
             DB::table('outgoings_wip_detail as owd')
                 ->join('outgoings_wip as ow', 'ow.id', '=', 'owd.outgoing_wip_id')
-                ->when($start, fn ($q) => $q->whereDate('ow.date', '>=', $start))
-                ->when($end, fn ($q) => $q->whereDate('ow.date', '<=', $end))
+                ->when($start, fn($q) => $q->whereDate('ow.date', '>=', $start))
+                ->when($end, fn($q) => $q->whereDate('ow.date', '<=', $end))
                 ->groupBy('owd.item_id')
                 ->select(['owd.item_id', DB::raw('COALESCE(SUM(owd.quantity), 0) as qty')]),
         );
@@ -238,8 +238,8 @@ class ReportService
             DB::table('productions_detail as pd')
                 ->join('productions as p', 'p.id', '=', 'pd.production_id')
                 ->where('pd.identifier', '=', 'CONSUME')
-                ->when($start, fn ($q) => $q->whereDate('p.date', '>=', $start))
-                ->when($end, fn ($q) => $q->whereDate('p.date', '<=', $end))
+                ->when($start, fn($q) => $q->whereDate('p.date', '>=', $start))
+                ->when($end, fn($q) => $q->whereDate('p.date', '<=', $end))
                 ->groupBy('pd.item_id')
                 ->select(['pd.item_id', DB::raw('COALESCE(SUM(pd.quantity), 0) as qty')]),
         );
@@ -311,8 +311,8 @@ class ReportService
             DB::table('productions as p')
                 ->join('bill_of_materials as bom', 'bom.id', '=', 'p.bill_of_material_id')
                 ->whereNotNull('bom.finished_good_id')
-                ->when($start, fn ($q) => $q->whereDate('p.date', '>=', $start))
-                ->when($end, fn ($q) => $q->whereDate('p.date', '<=', $end))
+                ->when($start, fn($q) => $q->whereDate('p.date', '>=', $start))
+                ->when($end, fn($q) => $q->whereDate('p.date', '<=', $end))
                 ->groupBy('bom.finished_good_id')
                 ->select([DB::raw('bom.finished_good_id as item_id'), DB::raw('COALESCE(SUM(p.total_quantity), 0) as qty')]),
         );
@@ -321,8 +321,8 @@ class ReportService
             DB::table('outgoings_detail as od')
                 ->join('outgoings as o', 'o.id', '=', 'od.outgoing_id')
                 ->whereNotNull('od.item_id')
-                ->when($start, fn ($q) => $q->whereDate('o.outgoing_date', '>=', $start))
-                ->when($end, fn ($q) => $q->whereDate('o.outgoing_date', '<=', $end))
+                ->when($start, fn($q) => $q->whereDate('o.outgoing_date', '>=', $start))
+                ->when($end, fn($q) => $q->whereDate('o.outgoing_date', '<=', $end))
                 ->groupBy('od.item_id')
                 ->select(['od.item_id', DB::raw('COALESCE(SUM(od.quantity), 0) as qty')]),
         );
@@ -374,14 +374,14 @@ class ReportService
         array $searchColumns,
         callable $mapper,
     ): array {
-        if (! empty($opts['start_date'])) {
+        if (!empty($opts['start_date'])) {
             $base->whereDate($dateColumn, '>=', $opts['start_date']);
         }
-        if (! empty($opts['end_date'])) {
+        if (!empty($opts['end_date'])) {
             $base->whereDate($dateColumn, '<=', $opts['end_date']);
         }
-        if (! empty($opts['search'])) {
-            $like = '%'.$opts['search'].'%';
+        if (!empty($opts['search'])) {
+            $like = '%' . $opts['search'] . '%';
             $base->where(function ($q) use ($searchColumns, $like) {
                 foreach ($searchColumns as $col) {
                     $q->orWhere($col, 'like', $like);
@@ -392,7 +392,7 @@ class ReportService
         $countQuery = clone $base;
         $total = (int) $countQuery->getCountForPagination();
 
-        if (! ($opts['is_pagination'] ?? true)) {
+        if (!($opts['is_pagination'] ?? true)) {
             $rows = $base->orderBy($dateColumn, 'desc')->get();
         } else {
             $page = max(1, (int) ($opts['page'] ?? 1));
@@ -422,7 +422,7 @@ class ReportService
     {
         $total = count($rows);
 
-        if (! empty($opts['search'])) {
+        if (!empty($opts['search'])) {
             $needle = strtolower((string) $opts['search']);
             $rows = array_values(array_filter($rows, function ($r) use ($needle) {
                 foreach ($r as $v) {
@@ -436,7 +436,7 @@ class ReportService
             $total = count($rows);
         }
 
-        if (! ($opts['is_pagination'] ?? true)) {
+        if (!($opts['is_pagination'] ?? true)) {
             return ['entries' => $rows, 'total' => $total];
         }
         $page = max(1, (int) ($opts['page'] ?? 1));
@@ -583,7 +583,7 @@ class ReportService
 
     private function fmt(mixed $value): string
     {
-        if (! $value) {
+        if (!$value) {
             return '';
         }
         try {

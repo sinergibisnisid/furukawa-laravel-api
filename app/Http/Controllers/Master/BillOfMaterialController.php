@@ -12,6 +12,8 @@ use App\Support\Paginator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Services\ExcelHelper;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Bill of Materials (header + detail).
@@ -21,7 +23,9 @@ use Illuminate\Support\Facades\DB;
  */
 class BillOfMaterialController extends Controller
 {
-    public function __construct(private ActivityLogService $logSvc) {}
+    public function __construct(
+        private ActivityLogService $logSvc
+    ) {}
 
     public function findAll(Request $request): JsonResponse
     {
@@ -83,7 +87,7 @@ class BillOfMaterialController extends Controller
     public function update(Request $request, ?int $id = null): JsonResponse
     {
         $resolvedId = $id ?? (int) $request->input('id');
-        if (! $resolvedId) {
+        if (!$resolvedId) {
             return ApiResponse::error('id is required', 422);
         }
         $request->merge(['id' => $resolvedId]);
@@ -93,8 +97,13 @@ class BillOfMaterialController extends Controller
 
         DB::transaction(function () use ($row, $data) {
             $row->fill(array_intersect_key($data, array_flip([
-                'no', 'date', 'company_id', 'finished_good_id',
-                'finished_good_name', 'feature', 'quantity',
+                'no',
+                'date',
+                'company_id',
+                'finished_good_id',
+                'finished_good_name',
+                'feature',
+                'quantity',
             ])));
             $row->save();
 
@@ -128,6 +137,82 @@ class BillOfMaterialController extends Controller
         $this->logSvc->log($request, ActivityLog::TYPE_DELETE, 'BillOfMaterial', "Deleted BOM #{$id}");
 
         return ApiResponse::success(null, 'Deleted');
+    }
+
+    public function download(Request $request): StreamedResponse
+    {
+        $query = BillOfMaterial::with(['company', 'finishedGoodItem', 'details.item'])
+            ->orderBy('id', 'desc');
+
+        if ($request->filled('before_date')) {
+            $query->whereDate('date', '<=', $request->input('before_date'));
+        }
+        if ($request->filled('after_date')) {
+            $query->whereDate('date', '>=', $request->input('after_date'));
+        }
+
+        $boms = $query->get();
+
+        $headers = [
+            'NO', 'BOM NO', 'BOM DATE', 'COMPANY', 'FINISHED GOOD CODE', 'FINISHED GOOD NAME', 'UOM',
+            'DETAIL ITEM CODE', 'DETAIL ITEM DESCRIPTION', 'DETAIL UOM', 'QUANTITY'
+        ];
+
+        $rows = [];
+        $no = 1;
+        foreach ($boms as $bom) {
+            if ($bom->details->isEmpty()) {
+                $rows[] = [
+                    $no++,
+                    $bom->no,
+                    $bom->date,
+                    $bom->company?->name,
+                    $bom->finishedGoodItem?->code,
+                    $bom->finished_good_name,
+                    $bom->finishedGoodItem?->uom,
+                    '', '', '', ''
+                ];
+            } else {
+                foreach ($bom->details as $idx => $detail) {
+                    if ($idx === 0) {
+                        $rows[] = [
+                            $no++,
+                            $bom->no,
+                            $bom->date,
+                            $bom->company?->name,
+                            $bom->finishedGoodItem?->code,
+                            $bom->finished_good_name,
+                            $bom->finishedGoodItem?->uom,
+                            $detail->item?->code,
+                            $detail->item?->description,
+                            $detail->item?->uom,
+                            $detail->quantity,
+                        ];
+                    } else {
+                        $rows[] = [
+                            '',
+                            '',
+                            '',
+                            '',
+                            '',
+                            '',
+                            '',
+                            $detail->item?->code,
+                            $detail->item?->description,
+                            $detail->item?->uom,
+                            $detail->quantity,
+                        ];
+                    }
+                }
+            }
+        }
+
+        $book = ExcelHelper::buildSimpleXlsx('BOM', $headers, $rows);
+        $filename = 'bill-of-materials-' . date('Y-m-d-His') . '.xlsx';
+
+        $this->logSvc->log($request, ActivityLog::TYPE_DOWNLOAD, 'BillOfMaterial', "Downloaded BOM Data");
+
+        return ExcelHelper::downloadResponse($book, $filename);
     }
 
     private function validateData(Request $request, bool $isUpdate): array

@@ -52,7 +52,8 @@ class ItemController extends GenericCrudController
                     'id' => $uom,
                     'name' => $uom,
                 ];
-            })->values();
+            })
+            ->values();
 
         return response()->json($uoms);
     }

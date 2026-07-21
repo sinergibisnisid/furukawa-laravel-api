@@ -35,7 +35,7 @@ class Paginator
         if ($search !== '' && $searchableColumns) {
             $query->where(function (Builder $w) use ($search, $searchableColumns) {
                 foreach ($searchableColumns as $col) {
-                    $w->orWhere($col, 'like', '%'.$search.'%');
+                    $w->orWhere($col, 'like', '%' . $search . '%');
                 }
             });
         }

@@ -22,22 +22,34 @@ abstract class GenericCrudController extends Controller
     /** @var class-string<Model> */
     protected string $modelClass;
 
-    /** Module name for activity log entries. */
+    /**
+     * Module name for activity log entries.
+     */
     protected string $moduleName;
 
-    /** Columns participating in the `?search=` LIKE filter. */
+    /**
+     * Columns participating in the `?search=` LIKE filter.
+     */
     protected array $searchable = [];
 
-    /** Relations to eager-load on listing endpoints. */
+    /**
+     * Relations to eager-load on listing endpoints.
+     */
     protected array $with = [];
 
-    /** Whitelisted columns clients can write via Create. */
+    /**
+     * Whitelisted columns clients can write via Create.
+     */
     abstract protected function createRules(): array;
 
-    /** Whitelisted columns clients can write via Update. */
+    /**
+     * Whitelisted columns clients can write via Update.
+     */
     abstract protected function updateRules(): array;
 
-    public function __construct(protected ActivityLogService $logSvc) {}
+    public function __construct(
+        protected ActivityLogService $logSvc
+    ) {}
 
     public function findAll(Request $request): JsonResponse
     {
@@ -132,18 +144,22 @@ abstract class GenericCrudController extends Controller
         return ApiResponse::success(null, 'Deleted');
     }
 
-    /** Override to inject derived/audit fields before insert. */
+    /**
+     * Override to inject derived/audit fields before insert.
+     */
     protected function beforeCreate(array $data, Request $request): array
     {
-        if (in_array('created_by', $this->createRules() ? array_keys($this->createRules()) : [], true) === false
-            && $this->modelHasColumn('created_by')) {
+        if (in_array('created_by', $this->createRules() ? array_keys($this->createRules()) : [], true) === false &&
+                $this->modelHasColumn('created_by')) {
             $data['created_by'] = $request->user()?->email;
         }
 
         return $data;
     }
 
-    /** Override to inject derived/audit fields before save. */
+    /**
+     * Override to inject derived/audit fields before save.
+     */
     protected function beforeUpdate(array $data, Model $model, Request $request): array
     {
         if ($this->modelHasColumn('updated_by')) {

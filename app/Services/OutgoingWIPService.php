@@ -119,18 +119,18 @@ class OutgoingWIPService
                     ->get();
 
                 foreach ($wipMovements as $mv) {
-                    if (! $mv->parent_movement_id) {
+                    if (!$mv->parent_movement_id) {
                         continue;
                     }
                     $incomingMovement = MaterialMovement::find($mv->parent_movement_id);
-                    if (! $incomingMovement) {
+                    if (!$incomingMovement) {
                         continue;
                     }
                     DB::table('incomings_details')
                         ->where('id', $incomingMovement->document_id)
                         ->update([
                             'remainder_quantity' => DB::raw(
-                                'remainder_quantity + '.((string) $mv->quantity),
+                                'remainder_quantity + ' . ((string) $mv->quantity),
                             ),
                         ]);
                 }

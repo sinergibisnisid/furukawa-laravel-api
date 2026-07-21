@@ -200,6 +200,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/pagination', [BillOfMaterialController::class, 'findAllPagination']);
         Route::get('/{id}', [BillOfMaterialController::class, 'show'])->whereNumber('id');
         Route::post('', [BillOfMaterialController::class, 'create']);
+        Route::post('/download', [BillOfMaterialController::class, 'download']);
         Route::put('', [BillOfMaterialController::class, 'update']);
         Route::put('/{id}', [BillOfMaterialController::class, 'update'])->whereNumber('id');
         Route::delete('/{id}', [BillOfMaterialController::class, 'destroy'])->whereNumber('id');
@@ -210,6 +211,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/pagination', [BillOfMaterialDetailController::class, 'findAllPagination']);
         Route::get('/pagination/{bomId}', [BillOfMaterialDetailController::class, 'findAllPagination'])
             ->whereNumber('bomId');
+        Route::post('/download', [BillOfMaterialDetailController::class, 'download']);
         Route::post('', [BillOfMaterialDetailController::class, 'create']);
         Route::put('', [BillOfMaterialDetailController::class, 'update']);
         Route::put('/{id}', [BillOfMaterialDetailController::class, 'update'])->whereNumber('id');
