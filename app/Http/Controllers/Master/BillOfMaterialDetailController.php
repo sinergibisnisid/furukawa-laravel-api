@@ -96,7 +96,7 @@ class BillOfMaterialDetailController extends Controller
     public function download(Request $request): StreamedResponse
     {
         $query = BillOfMaterialDetail::with(['item'])
-            ->orderBy('id', 'asc');
+            ->orderBy('id', 'desc');
 
         // Filter by specific BOM (when user clicks download on detail table)
         if ($request->filled('filter_id')) {
