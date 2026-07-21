@@ -141,7 +141,7 @@ class BillOfMaterialController extends Controller
 
     public function download(Request $request): StreamedResponse
     {
-        $query = BillOfMaterial::with(['company', 'finishedGoodItem', 'details.item'])
+        $query = BillOfMaterial::with(['finishedGoodItem'])
             ->orderBy('id', 'desc');
 
         if ($request->filled('before_date')) {
@@ -154,57 +154,20 @@ class BillOfMaterialController extends Controller
         $boms = $query->get();
 
         $headers = [
-            'NO', 'BOM NO', 'BOM DATE', 'COMPANY', 'FINISHED GOOD CODE', 'FINISHED GOOD NAME', 'UOM',
-            'DETAIL ITEM CODE', 'DETAIL ITEM DESCRIPTION', 'DETAIL UOM', 'QUANTITY'
+            'NO', 'BOM NO', 'BOM DATE', 'FINISHED GOOD CODE', 'FINISHED GOOD NAME', 'UOM',
         ];
 
         $rows = [];
         $no = 1;
         foreach ($boms as $bom) {
-            if ($bom->details->isEmpty()) {
-                $rows[] = [
-                    $no++,
-                    $bom->no,
-                    $bom->date,
-                    $bom->company?->name,
-                    $bom->finishedGoodItem?->code,
-                    $bom->finished_good_name,
-                    $bom->finishedGoodItem?->uom,
-                    '', '', '', ''
-                ];
-            } else {
-                foreach ($bom->details as $idx => $detail) {
-                    if ($idx === 0) {
-                        $rows[] = [
-                            $no++,
-                            $bom->no,
-                            $bom->date,
-                            $bom->company?->name,
-                            $bom->finishedGoodItem?->code,
-                            $bom->finished_good_name,
-                            $bom->finishedGoodItem?->uom,
-                            $detail->item?->code,
-                            $detail->item?->description,
-                            $detail->item?->uom,
-                            $detail->quantity,
-                        ];
-                    } else {
-                        $rows[] = [
-                            '',
-                            '',
-                            '',
-                            '',
-                            '',
-                            '',
-                            '',
-                            $detail->item?->code,
-                            $detail->item?->description,
-                            $detail->item?->uom,
-                            $detail->quantity,
-                        ];
-                    }
-                }
-            }
+            $rows[] = [
+                $no++,
+                $bom->no,
+                $bom->date ? $bom->date->format('Y-m-d') : '',
+                $bom->finishedGoodItem?->code ?? '',
+                $bom->finishedGoodItem?->name ?? $bom->finished_good_name ?? '',
+                $bom->finishedGoodItem?->uom ?? '',
+            ];
         }
 
         $book = ExcelHelper::buildSimpleXlsx('BOM', $headers, $rows);

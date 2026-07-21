@@ -95,8 +95,13 @@ class BillOfMaterialDetailController extends Controller
 
     public function download(Request $request): StreamedResponse
     {
-        $query = BillOfMaterialDetail::with(['item', 'billOfMaterial'])
-            ->orderBy('id', 'desc');
+        $query = BillOfMaterialDetail::with(['item'])
+            ->orderBy('id', 'asc');
+
+        // Filter by specific BOM (when user clicks download on detail table)
+        if ($request->filled('filter_id')) {
+            $query->where('bill_of_material_id', $request->input('filter_id'));
+        }
 
         if ($request->filled('before_date')) {
             $query->whereHas('billOfMaterial', function($q) use ($request) {
@@ -112,7 +117,7 @@ class BillOfMaterialDetailController extends Controller
         $details = $query->get();
 
         $headers = [
-            'NO', 'BOM NO', 'BOM DATE', 'ITEM CODE', 'ITEM DESCRIPTION', 'UOM', 'QUANTITY'
+            'NO', 'ITEM CODE', 'ITEM DESCRIPTION', 'UOM', 'QUANTITY'
         ];
 
         $rows = [];
@@ -120,11 +125,9 @@ class BillOfMaterialDetailController extends Controller
         foreach ($details as $detail) {
             $rows[] = [
                 $no++,
-                $detail->billOfMaterial?->no,
-                $detail->billOfMaterial?->date,
-                $detail->item?->code,
-                $detail->item?->description,
-                $detail->item?->uom,
+                $detail->item?->code ?? '',
+                $detail->item?->name ?? '',
+                $detail->item?->uom ?? '',
                 $detail->quantity,
             ];
         }
